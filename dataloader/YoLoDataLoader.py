@@ -14,7 +14,7 @@ from torch.utils import data
 import glob
 import os
 from xml.etree import ElementTree
-from collections import Counter
+from collections import Counter, OrderedDict
 from torchvision import transforms
 
 
@@ -29,7 +29,7 @@ class YoLoDataSet(data.Dataset):
     self.image_folder = os.path.join(self.data_folder, "Images")
     self.annote_folder = os.path.join(self.data_folder, "Annotations")
     # 记录数据集总类别个数
-    self.classes = dict()
+    self.classes = OrderedDict()
     self.img_size = img_size
     self.imgpaths = glob.glob(self.image_folder + "/*.jpg")
     self.labelpaths = glob.glob(self.annote_folder + "/*.xml")
@@ -159,6 +159,7 @@ class YoLoDataSet(data.Dataset):
     
 if __name__ == "__main__":
   yolodataset = YoLoDataSet()
+  print(yolodataset.classes)
   for image, label, mask in iter(yolodataset):
     print(image.shape)
     break
