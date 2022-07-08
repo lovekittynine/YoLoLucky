@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jul  7 12:31:36 2022
+
+@author: weishaowei
+"""
+
+import torch
+import cv2
+from PIL import Image
+import numpy as np
+from torch.utils import data
+import glob
+import os
+from xml.etree import ElementTree
+from collections import Counter
+from torchvision import transforms
+
+
+class YoLoDataSet(data.Dataset):
+  """
+  YoLo车辆数据集:
+    return 7x7x(5+C)
+  """
+  def __init__(self, data_folder="../北京理工车辆数据集", img_size=224):
+    super().__init__()
+    self.data_folder = data_folder
+    self.image_folder = os.path.join(self.data_folder, "Images")
+    self.annote_folder = os.path.join(self.data_folder, "Annotations")
+    # 记录数据集总类别个数
+    self.classes = dict()
+    self.img_size = img_size
+    self.imgpaths = glob.glob(self.image_folder + "/*.jpg")
+    self.labelpaths = glob.glob(self.annote_folder + "/*.xml")
+    self.__getCategory()
+    # 颜色抖动数据增强操作
+    self.transform = transforms.Compose([transforms.ToPILImage(),
+                                         transforms.ColorJitter(0.25, 0.4, 0.25, 0.3),
+                                         transforms.ToTensor(),
+                                         transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                                              std = [0.229, 0.224, 0.225])])
+    
+    
+    
+  def __parse(self, imgpath, labelpath):
+    # 解析图像及其bounding boxes list标签
+    img = cv2.imread(imgpath)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    dom = ElementTree.parse(labelpath)
+    # 获取图像分辨率
+    H, W, C = img.shape
+    bboxes = []
+    for obj in dom.findall("object"):
+      category = obj.find("name").text
+      cls_id = self.classes[category]
+      # get bnd box
+      bndbox = obj.find("bndbox")
+      xmin = int(bndbox.find("xmin").text)
+      ymin = int(bndbox.find("ymin").text)
+      xmax = int(bndbox.find("xmax").text)
+      ymax = int(bndbox.find("ymax").text)
+      bboxes.append([xmin, ymin, xmax, ymax, cls_id])
+    return img, (H, W), bboxes
+        
+  
+  def __getCategory(self):
+    # 获取数据集类别数
+    categorys = []
+    for file in self.labelpaths:
+      dom = ElementTree.parse(file)
+      for obj in dom.findall("object"):
+        category = obj.find("name").text
+        categorys.append(category)
+        if category not in self.classes:
+          self.classes[category] = len(self.classes)
+    counter = Counter(categorys)
+    print("数据集类别分布:", counter)
+    
+    
+  def __getitem__(self, idx):
+    imgpath = self.imgpaths[idx]
+    labelpath = os.path.join(self.annote_folder, os.path.basename(imgpath).replace("jpg", "xml"))
+    image, (H, W), bboxes = self.__parse(imgpath, labelpath)
+    # print(bboxes)
+    # resize image
+    image = cv2.resize(image, (self.img_size, self.img_size))
+    h_ratio, w_ratio = self.img_size/H, self.img_size/W
+    # ground truth label
+    label = np.zeros((7, 7, 5+len(self.classes)), dtype=np.float32)
+    mask = np.zeros((7, 7), dtype=np.float32)
+    
+    for box in bboxes:
+      xmin, ymin, xmax, ymax, cls_id = box
+      # box resize
+      xmin *= w_ratio
+      xmax *= w_ratio
+      ymin *= h_ratio
+      ymax *= h_ratio
+      # convert to (x,y,w,h)
+      width = xmax - xmin
+      height = ymax - ymin
+      # 坐标32倍下采样
+      c_x = (xmin + 0.5 * width) / 32
+      c_y = (ymin + 0.5 * height) / 32
+      # 随机左右反转进行数据增强
+      if np.random.rand() > 0.5:
+        c_x = 7.0 - c_x
+        image = image[:, ::-1, :].copy() 
+      # print(c_x, c_y)
+      # 计算中心点网格坐标
+      grid_x, grid_y = int(np.floor(c_x)), int(np.floor(c_y))
+      # print(grid_x, grid_y)
+      offset_x, offset_y = c_x - grid_x, c_y - grid_y
+      # normalize width and height
+      width /= self.img_size
+      height /= self.img_size
+      # set label
+      label[grid_y, grid_x, 0] = offset_x
+      label[grid_y, grid_x, 1] = offset_y
+      label[grid_y, grid_x, 2] = width
+      label[grid_y, grid_x, 3] = height
+      label[grid_y, grid_x, 4] = 1.0
+      label[grid_y, grid_x, 5+cls_id] = 1.0
+      # set mask
+      mask[grid_y, grid_x] = 1.0  
+    
+    # convert to tensor
+    image = self.transform(image)
+    label = torch.from_numpy(label)
+    mask = torch.from_numpy(mask)
+    
+    return image, label, mask
+  
+  
+  def __len__(self):
+    return len(self.imgpaths)
+  
+  
+  def display_bbox(self, image, label):
+    """
+    note:该函数作用于transform之前
+    """
+    (row_grids, col_grids) = np.where(label[..., 4]==1.0)
+    # restore bbox
+    for y, x in zip(row_grids, col_grids):
+      c_x, c_y = x + label[y, x, 0], y + label[y, x, 1]
+      width = label[y, x, 2] * self.img_size
+      height = label[y, x, 3] * self.img_size
+      c_x *= 32
+      c_y *= 32
+      xmin, xmax = int(c_x - 0.5 * width), int(c_x + 0.5 * width)
+      ymin, ymax = int(c_y - 0.5 * height), int(c_y + 0.5 * height)
+      cv2.rectangle(image, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2, 2)
+    # cv2.imshow("img", image)
+    # cv2.destroyAllWindows()
+    cv2.imwrite("./test.jpg", image)
+    
+    
+if __name__ == "__main__":
+  yolodataset = YoLoDataSet()
+  for image, label, mask in iter(yolodataset):
+    print(image.shape)
+    pass
+  # print(image.shape)
+  # print(label)
+  print(mask)
+  # yolodataset.display_bbox(image, label)
+    
+    
+    
+    
+    
+
+
+
+
+

@@ -1,0 +1,1 @@
+## 简易版yolo lucky实现, 实现车辆检车backbone: vgg16B = 1, 每个网格负责预测一个目标
