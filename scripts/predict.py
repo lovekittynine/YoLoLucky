@@ -118,7 +118,7 @@ class YoLoLuckyPredictor():
     
 
 if __name__ == "__main__":
-  args.image = "../北京理工车辆数据集/Images/000019.jpg"
+  args.image = "../北京理工车辆数据集/Images/001000.jpg"
   # args.ckpt = ""
   detector = YoLoLuckyPredictor()
   detector.predict()

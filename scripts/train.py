@@ -116,7 +116,7 @@ class LuckyYoLoTrainer():
       center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
       center_loss = center_pos + 0.1 * center_neg
       # 类别概率损失
-      cls_loss = torch.sum((preds[:,5:,:,:] - labs[:,5:,:,:])**2*mask.unsqueeze(1))
+      cls_loss = torch.sum((preds[:,5:,:,:]*preds[:,4:5,:,:] - labs[:,5:,:,:])**2*mask.unsqueeze(1))
       # 关键点偏移量损失
       offset_loss = torch.sum((preds[:,:2,:,:] - labs[:,:2,:,:])**2*mask.unsqueeze(1))
       # 边界框尺度损失
