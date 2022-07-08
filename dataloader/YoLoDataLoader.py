@@ -161,6 +161,7 @@ if __name__ == "__main__":
   yolodataset = YoLoDataSet()
   for image, label, mask in iter(yolodataset):
     print(image.shape)
+    break
     pass
   # print(image.shape)
   # print(label)

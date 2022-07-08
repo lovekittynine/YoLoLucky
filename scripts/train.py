@@ -18,8 +18,7 @@ from utils.show_detects import display_detects
 from torch.utils import data
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
-import cv2
+
 
 
 parser = argparse.ArgumentParser("LuckyYoLo Training")
@@ -108,6 +107,7 @@ class LuckyYoLoTrainer():
       labs = labs.to(self.device)
       mask = mask.to(self.device)
       labs = labs.permute([0,3,1,2])
+      
       # forward
       # Nx(5+7)x7x7
       preds = self.model(imgs)
@@ -134,11 +134,12 @@ class LuckyYoLoTrainer():
       if self.global_step % 10 == 0:
         print("Epoch:[{:03d}]-Loss:{:.3f}-bbox_loss:{:.3f}-cls_loss:{:.3f}-center_loss:{:.3f}"\
               .format(epoch, loss.item(), bbox_loss.item(), cls_loss.item(), center_loss.item()))
+      
       if self.global_step % 100 == 0:
-        self.display(imgs.detach().cpu(), preds.detach().cpu())
+        self.display(imgs.detach().cpu(), labs.detach().cpu())
     # epoch finish evaluate
     # save
-    torch.save(self.model.state_dict(), os.path.join(args.checkpoint, "epoch_%d.pt"%epoch))
+    # torch.save(self.model.state_dict(), os.path.join(args.checkpoint, "epoch_%d.pt"%epoch))
     
     
   def evaluate(self):
@@ -178,12 +179,14 @@ class LuckyYoLoTrainer():
       c_x = (grid_x + offset_x) * 32
       c_y = (grid_y + offset_y) * 32
       cls_idx = torch.argmax(cls_prob, dim=1).numpy()
-      xmin = (c_x - 0.5 * width).int().clamp_min(0).numpy()
-      xmax = (c_x + 0.5 * width).int().clamp_max(224).numpy()
-      ymin = (c_y - 0.5 * height).int().clamp_min(0).numpy()
-      ymax = (c_y + 0.5 * height).int().clamp_max(224).numpy()
-      for x1, y1, x2, y2, idx in zip(xmin, ymin, xmax, ymax, cls_idx):
-        bnd = [x1, y1, x2, y2, self.__id2cls[idx]]
+      # xmin = (c_x - 0.5 * width).int().clamp_min(0).numpy()
+      # xmax = (c_x + 0.5 * width).int().clamp_max(224).numpy()
+      # ymin = (c_y - 0.5 * height).int().clamp_min(0).numpy()
+      # ymax = (c_y + 0.5 * height).int().clamp_max(224).numpy()
+      # -------------------------------------------- #
+      # bbox可视化格式是:[x,y,w,h,c]
+      for x, y, w, h, idx in zip(c_x.numpy(), c_y.numpy(), width.numpy(), height.numpy(), cls_idx):
+        bnd = [x, y, w, h, self.__id2cls[idx]]
         box.append(bnd)
       bboxes.append(box)
     for i, (img, box) in enumerate(zip(imgs, bboxes)):
