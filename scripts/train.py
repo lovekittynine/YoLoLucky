@@ -23,7 +23,7 @@ import cv2
 
 
 parser = argparse.ArgumentParser("LuckyYoLo Training")
-parser.add_argument("--batchsize", default=8, type=int)
+parser.add_argument("--batchsize", default=64, type=int)
 parser.add_argument("--epochs", default=100, type=int)
 parser.add_argument("--lr", default=2e-4, type=float)
 parser.add_argument("--warmup_epochs", default=5, type=int)
@@ -129,10 +129,10 @@ class LuckyYoLoTrainer():
       # print(imgs.shape, loss.item())
       self.optimizer.step()
       self.global_step += 1
-      if self.global_step % 1 == 0:
+      if self.global_step % 10 == 0:
         print("Epoch:[{:03d}]-Loss:{:.3f}-bbox_loss:{:.3f}-cls_loss:{:.3f}-center_loss:{:.3f}"\
               .format(epoch, loss.item(), bbox_loss.item(), cls_loss.item(), center_loss.item()))
-      if self.global_step % 10 == 0:
+      if self.global_step % 100 == 0:
         self.display(imgs.detach().cpu(), preds.detach().cpu())
     # epoch finish evaluate
     # save
