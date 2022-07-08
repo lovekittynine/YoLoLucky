@@ -123,7 +123,8 @@ class LuckyYoLoTrainer():
       scale_loss = torch.sum((torch.sqrt(preds[:,3:5,:,:]+1e-8) \
                               - torch.sqrt(labs[:,3:5,:,:])+1e-8)**2*mask.unsqueeze(1))
       bbox_loss = offset_loss + scale_loss
-      loss = 5.0*bbox_loss + cls_loss + center_loss
+      # loss在batch维度取平均
+      loss = (5.0*bbox_loss + cls_loss + center_loss) / imgs.size(0)
       # backward
       self.optimizer.zero_grad()
       loss.backward()
