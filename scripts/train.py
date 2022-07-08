@@ -70,7 +70,8 @@ class LuckyYoLoTrainer():
     self.dataloader = data.DataLoader(self.dataset, 
                                       batch_size=args.batchsize,
                                       shuffle=True,
-                                      #pin_memory=True
+                                      num_workers=4,
+                                      pin_memory=True
                                       )
     
     
