@@ -136,10 +136,11 @@ class LuckyYoLoTrainer():
               .format(epoch, loss.item(), bbox_loss.item(), cls_loss.item(), center_loss.item()))
       
       if self.global_step % 100 == 0:
-        self.display(imgs.detach().cpu(), labs.detach().cpu())
+        self.display(imgs.detach().cpu(), preds.detach().cpu())
+        
     # epoch finish evaluate
     # save
-    # torch.save(self.model.state_dict(), os.path.join(args.checkpoint, "epoch_%d.pt"%epoch))
+    torch.save(self.model.state_dict(), os.path.join(args.checkpoint, "epoch_%d.pt"%epoch))
     
     
   def evaluate(self):

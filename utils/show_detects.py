@@ -22,14 +22,14 @@ def display_bbox(image, box_list:List):
   
   
 def display_detects(image, box_list:List, filename:str):
-  h, w, _ = image.shape
+  height, width, _ = image.shape
   for box in box_list:
     if box:
       x, y, w, h, category = box
       x1, y1 = max(0, int(x - w//2)), max(0, int(y - h//2))
-      x2, y2 = min(w, int(x + w//2)), min(h, int(y + h//2))
+      x2, y2 = min(width, int(x + w//2)), min(height, int(y + h//2))
       cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2, 2)
-      del_w, del_h = min(50, int(w)), min(20, int(h))
+      del_w, del_h = min(50, int(width)), min(20, int(height))
       cv2.rectangle(image, (x1, y1), (x1+del_w, y1+del_h), (0, 255, 0), -1, 1)
       cv2.putText(image, category, (x1, y1+10), cv2.FONT_HERSHEY_COMPLEX, 0.38, (0,0,255), 1)
   cv2.imwrite(filename, image)
