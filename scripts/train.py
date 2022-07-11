@@ -150,6 +150,7 @@ class LuckyYoLoTrainer():
       self.scaler.scale(loss).backward()
       self.scaler.step(self.optimizer)
       scale = self.scaler.get_scale()
+      self.scaler.update()
       
       # print(imgs.shape, loss.item())
       self.global_step += 1
