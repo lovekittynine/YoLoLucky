@@ -162,6 +162,8 @@ class LuckyYoLoTrainer():
     # 转换bbox: xywh格式到xyxy格式, shape: Nx4x7x7
     grid_size = bboxes.size(-1)
     grid_y, grid_x = torch.meshgrid(torch.arange(grid_size), torch.arange(grid_size))
+    grid_y = grid_y.to(self.device)
+    grid_x = grid_x.to(self.device)
     # 转换中心点坐标
     bboxes[:, 0, :, :] = bboxes[:, 0, :, :] + grid_x.unsqueeze(0)
     bboxes[:, 1, :, :] = bboxes[:, 1, :, :] + grid_y.unsqueeze(0)
