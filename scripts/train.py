@@ -116,15 +116,16 @@ class LuckyYoLoTrainer():
       # Nx(5+7)x7x7
       preds = self.model(imgs)
       # 中心点损失
-      # center_pos = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*mask)
-      # center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
-      # center_loss = center_pos + 0.1 * center_neg
-      
+      center_pos = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*mask)
+      center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
+      center_loss = center_pos + 0.1 * center_neg
+      """
       # 注意.clone()开辟新的内存空间.detach()从计算图中剥离
       iou = self.calculate_iou(preds[:, :4, :, :].clone().detach(), labs[:, :4, :, :])
       center_pos = torch.sum((preds[:,4,:,:] - iou)**2*mask)
       center_neg = torch.sum((preds[:,4,:,:] - iou)**2*(1.0 - mask))
       center_loss = center_pos + 0.5 * center_neg
+      """
       # 类别概率损失
       cls_loss = torch.sum((preds[:,5:,:,:] - labs[:,5:,:,:])**2*mask.unsqueeze(1))
       # 关键点偏移量损失
@@ -134,7 +135,7 @@ class LuckyYoLoTrainer():
                               - torch.sqrt(labs[:,2:4,:,:])+1e-8)**2*mask.unsqueeze(1))
       bbox_loss = offset_loss + scale_loss
       # loss在batch维度取平均
-      loss = (0.1*bbox_loss + cls_loss + center_loss) / imgs.size(0)
+      loss = (5.0*bbox_loss + cls_loss + center_loss) / imgs.size(0)
       # backward
       self.optimizer.zero_grad()
       loss.backward()

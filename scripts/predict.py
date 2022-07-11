@@ -45,7 +45,11 @@ class YoLoLuckyPredictor():
     self.model.eval()
     self.mean = torch.tensor([0.485, 0.456, 0.406]).unsqueeze(-1).unsqueeze(-1)
     self.std = torch.tensor([0.229, 0.224, 0.225]).unsqueeze(-1).unsqueeze(-1)
-    self.idx2cls = {0:"truck",1:"car",2:"bus",3:"microbus",4:"minivan",5:"suv",6:"microvan"}
+    # self.idx2cls = {0:"truck",1:"car",2:"bus",3:"microbus",4:"minivan",5:"suv",6:"microvan"}
+    # voc类别索引
+    self.idx2cls = {0:"bottle",1:"person",2:"boat",3:"chair",4:"cat",5:"car",6:"horse",
+                    7:"aeroplane",8:"diningtable",9:"cow",10:"train",11:"sofa",12:"pottedplant",
+                    13:"brid",14:"bycycle",15:"tvmonitor",16:"dog",17:"motorbike",18:"bus",19:"sheep"}
     
     
     
@@ -106,10 +110,10 @@ class YoLoLuckyPredictor():
         x1, y1 = max(0, int(x - w//2)), max(0, int(y - h//2))
         x2, y2 = min(width, int(x + w//2)), min(height, int(y + h//2))
         cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2, 2)
-        del_w, del_h = min(200, int(width)), min(100, int(height))
+        del_w, del_h = min(50, int(width)), min(30, int(height))
         # print(x1, y1, x2, y2)
         cv2.rectangle(image, (x1, y1), (x1+del_w, y1+del_h), (0, 255, 0), -1, 1)
-        cv2.putText(image, "%s:%.3f"%(category,p), (x1, y1+50), cv2.FONT_HERSHEY_COMPLEX, 0.8, (0,0,255), 1)
+        cv2.putText(image, "%s:%.3f"%(category,p), (x1, y1+15), cv2.FONT_HERSHEY_COMPLEX, 0.3, (0,0,255), 1)
     plt.imshow(image)
     plt.show()
     cv2.imwrite(filename, image)
@@ -119,8 +123,9 @@ class YoLoLuckyPredictor():
     
 
 if __name__ == "__main__":
-  args.image = "../北京理工车辆数据集/Images/002100.jpg"
-  args.ckpt = "../checkpoint/epoch_100.pt"
+  args.image = "../utils/009961.jpg"
+  args.ckpt = "../checkpoint/epoch_49.pt"
+  args.num_classes = 20
   detector = YoLoLuckyPredictor()
   detector.predict()
   
