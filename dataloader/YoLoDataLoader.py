@@ -23,7 +23,7 @@ class YoLoDataSet(data.Dataset):
   YoLo车辆数据集:
     return 7x7x(5+C)
   """
-  def __init__(self, data_folder="../北京理工车辆数据集", img_size=224):
+  def __init__(self, data_folder="../北京理工车辆数据集", img_size=224, stride=32):
     super().__init__()
     self.data_folder = data_folder
     self.image_folder = os.path.join(self.data_folder, "Images")
@@ -31,6 +31,10 @@ class YoLoDataSet(data.Dataset):
     # 记录数据集总类别个数
     self.classes = OrderedDict()
     self.img_size = img_size
+    # 网络下采样倍数
+    self.stride = stride
+    # grid size
+    self.grid_size = self.img_size // self.stride
     self.imgpaths = glob.glob(self.image_folder + "/*.jpg")
     self.labelpaths = glob.glob(self.annote_folder + "/*.xml")
     self.__getCategory()
@@ -39,7 +43,7 @@ class YoLoDataSet(data.Dataset):
                                          transforms.ColorJitter(0.25, 0.4, 0.25, 0.3),
                                          transforms.ToTensor(),
                                          transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                              std = [0.229, 0.224, 0.225])])
+                                                              std=[0.229, 0.224, 0.225])])
     
     
     
@@ -87,8 +91,8 @@ class YoLoDataSet(data.Dataset):
     image = cv2.resize(image, (self.img_size, self.img_size))
     h_ratio, w_ratio = self.img_size/H, self.img_size/W
     # ground truth label
-    label = np.zeros((7, 7, 5+len(self.classes)), dtype=np.float32)
-    mask = np.zeros((7, 7), dtype=np.float32)
+    label = np.zeros((self.grid_size, self.grid_size, 5+len(self.classes)), dtype=np.float32)
+    mask = np.zeros((self.grid_size, self.grid_size), dtype=np.float32)
     
     for box in bboxes:
       xmin, ymin, xmax, ymax, cls_id = box
@@ -105,7 +109,7 @@ class YoLoDataSet(data.Dataset):
       c_y = (ymin + 0.5 * height) / 32
       # 随机左右反转进行数据增强
       if np.random.rand() > 0.5:
-        c_x = 7.0 - c_x
+        c_x = self.grid_size - c_x
         image = image[:, ::-1, :].copy() 
       # print(c_x, c_y)
       # 计算中心点网格坐标
@@ -157,8 +161,37 @@ class YoLoDataSet(data.Dataset):
     cv2.imwrite("./test.jpg", image)
     
     
+  def display_bboxv2(self, image, label):
+    y, x = torch.meshgrid(torch.arange(self.grid_size), torch.arange(self.grid_size))
+    # 7x7x4
+    bboxes = label[..., :4]
+    # restore center coordinate
+    c_x = (bboxes[..., 0] + x) * self.stride
+    c_y = (bboxes[..., 1] + y) * self.stride
+    width = bboxes[..., 2] * self.img_size
+    height = bboxes[..., 3] * self.img_size
+    # 7x7
+    xmin = c_x - 0.5 * width
+    xmax = c_x + 0.5 * width
+    ymin = c_y - 0.5 * height
+    ymax = c_y + 0.5 * height
+    # find objects
+    (row_grids, col_grids) = torch.where(label[..., 4]==1.0)
+    mean=torch.tensor([0.485, 0.456, 0.406]).unsqueeze(-1).unsqueeze(-1)
+    std = torch.tensor([0.229, 0.224, 0.225]).unsqueeze(-1).unsqueeze(-1)
+    image = (image * std + mean) * 255.0
+    image = image.permute([1,2,0]).contiguous()
+    image = image.numpy().astype(np.uint8)
+    for grid_y, grid_x in zip(row_grids, col_grids):
+      x1, y1, x2, y2 = xmin[grid_y, grid_x].int().item(), ymin[grid_y, grid_x].int().item(), xmax[grid_y, grid_x].int().item(), ymax[grid_y, grid_x].int().item()
+      cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2, 2)
+    cv2.imwrite("./test.jpg", image)  
+      
+    
+    
+    
 if __name__ == "__main__":
-  yolodataset = YoLoDataSet()
+  yolodataset = YoLoDataSet(img_size=448)
   print(yolodataset.classes)
   for image, label, mask in iter(yolodataset):
     print(image.shape)
@@ -167,7 +200,7 @@ if __name__ == "__main__":
   # print(image.shape)
   # print(label)
   print(mask)
-  # yolodataset.display_bbox(image, label)
+  yolodataset.display_bboxv2(image, label)
     
     
     

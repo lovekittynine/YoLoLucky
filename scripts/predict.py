@@ -20,7 +20,7 @@ import cv2
 
 
 parser = argparse.ArgumentParser("YoLoLucky Predict")
-parser.add_argument("--ckpt", default="../checkpoint/epoch_100.pt", type=str)
+parser.add_argument("--ckpt", default="../checkpoint/epoch_71.pt", type=str)
 parser.add_argument("--image", default="", type=str)
 parser.add_argument("--img_size", default=224, type=int)
 parser.add_argument("--boxes", default=1, type=int)
@@ -45,7 +45,7 @@ class YoLoLuckyPredictor():
     self.model.eval()
     self.mean = torch.tensor([0.485, 0.456, 0.406]).unsqueeze(-1).unsqueeze(-1)
     self.std = torch.tensor([0.229, 0.224, 0.225]).unsqueeze(-1).unsqueeze(-1)
-    self.idx2cls = {0:"bus",1:"microbus",2:"car",3:"truck",4:"minivan",5:"suv",6:"microvan"}
+    self.idx2cls = {0:"truck",1:"car",2:"bus",3:"microbus",4:"minivan",5:"suv",6:"microvan"}
     
     
     
@@ -83,6 +83,7 @@ class YoLoLuckyPredictor():
       # 得到目标类别概率
       cls_prob = confidence * preds[5:,grid_y,grid_x]
       # 目标类别和索引
+      # print(cls_prob.t())
       tgt_prob, tgt_ind = torch.max(cls_prob, dim=0)
       c_x = (offset_x + grid_x) * 32 / w_ratio
       c_y = (offset_y + grid_y) * 32 / h_ratio
@@ -118,8 +119,8 @@ class YoLoLuckyPredictor():
     
 
 if __name__ == "__main__":
-  args.image = "../北京理工车辆数据集/Images/001000.jpg"
-  # args.ckpt = ""
+  args.image = "../北京理工车辆数据集/Images/002100.jpg"
+  args.ckpt = "../checkpoint/epoch_100.pt"
   detector = YoLoLuckyPredictor()
   detector.predict()
   

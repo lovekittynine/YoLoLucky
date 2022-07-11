@@ -38,6 +38,8 @@ parser.add_argument("--img_size", default=224, type=int)
 args = parser.parse_args()
 
 
+torch.autograd.set_detect_anomaly(True)
+
 class LuckyYoLoTrainer():
   """
   训练主类
@@ -57,6 +59,8 @@ class LuckyYoLoTrainer():
     self.global_step = 0
     self.__cls2id = self.dataset.classes
     self.__id2cls = {idx:category for category, idx in self.__cls2id.items()}
+    # 模型下采样倍数
+    self.stride = 32
     
     
   def build_model(self):
@@ -112,9 +116,15 @@ class LuckyYoLoTrainer():
       # Nx(5+7)x7x7
       preds = self.model(imgs)
       # 中心点损失
-      center_pos = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*mask)
-      center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
-      center_loss = center_pos + 0.1 * center_neg
+      # center_pos = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*mask)
+      # center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
+      # center_loss = center_pos + 0.1 * center_neg
+      
+      # 注意.clone()开辟新的内存空间.detach()从计算图中剥离
+      iou = self.calculate_iou(preds[:, :4, :, :].clone().detach(), labs[:, :4, :, :])
+      center_pos = torch.sum((preds[:,4,:,:] - iou)**2*mask)
+      center_neg = torch.sum((preds[:,4,:,:] - iou)**2*(1.0 - mask))
+      center_loss = center_pos + 0.5 * center_neg
       # 类别概率损失
       cls_loss = torch.sum((preds[:,5:,:,:]*preds[:,4:5,:,:] - labs[:,5:,:,:])**2*mask.unsqueeze(1))
       # 关键点偏移量损失
@@ -131,7 +141,7 @@ class LuckyYoLoTrainer():
       # print(imgs.shape, loss.item())
       self.optimizer.step()
       self.global_step += 1
-      if self.global_step % 10 == 0:
+      if self.global_step % 1 == 0:
         print("Epoch:[{:03d}]-Loss:{:.3f}-bbox_loss:{:.3f}-cls_loss:{:.3f}-center_loss:{:.3f}"\
               .format(epoch, loss.item(), bbox_loss.item(), cls_loss.item(), center_loss.item()))
       
@@ -146,6 +156,44 @@ class LuckyYoLoTrainer():
   def evaluate(self):
     # TODO评测
     pass
+  
+  
+  def xywh2xyxy(self, bboxes):
+    # 转换bbox: xywh格式到xyxy格式, shape: Nx4x7x7
+    grid_size = bboxes.size(-1)
+    grid_y, grid_x = torch.meshgrid(torch.arange(grid_size), torch.arange(grid_size))
+    # 转换中心点坐标
+    bboxes[:, 0, :, :] = bboxes[:, 0, :, :] + grid_x.unsqueeze(0)
+    bboxes[:, 1, :, :] = bboxes[:, 1, :, :] + grid_y.unsqueeze(0)
+    bboxes[:, 2, :, :] = bboxes[:, 2, :, :] * grid_size
+    bboxes[:, 3, :, :] = bboxes[:, 3, :, :] * grid_size
+    # convert to xyxy format
+    # 由于torch计算梯度的原因,此处不能原地修改
+    bboxes[:, 0, :, :] = bboxes[:, 0, :, :] - 0.5 * bboxes[:, 2, :, :]
+    bboxes[:, 1, :, :] = bboxes[:, 0, :, :] - 0.5 * bboxes[:, 3, :, :]
+    bboxes[:, 2, :, :] = bboxes[:, 0, :, :] + bboxes[:, 2, :, :]
+    bboxes[:, 3, :, :] = bboxes[:, 1, :, :] + bboxes[:, 3, :, :]
+    return bboxes
+    
+    
+  def calculate_iou(self, bboxes1, bboxes2):
+    # 计算预测的bboxes和gt bboxes之间的iou值作为中心点置信度损失
+    # 中心点置信度损失不仅要衡量是否包含目标, 还要衡量目标预测的好坏
+    # Nx4x7x7
+    bboxes1 = self.xywh2xyxy(bboxes1)
+    bboxes2 = self.xywh2xyxy(bboxes2)
+    # compute iou
+    bboxes1_area = (bboxes1[:, 2, :, :] - bboxes1[:, 0, :, :]) * (bboxes1[:, 3, :, :] - bboxes1[:, 1, :, :])
+    bboxes1_area.clamp_min_(0.0)
+    bboxes2_area = (bboxes2[:, 2, :, :] - bboxes2[:, 0, :, :]) * (bboxes2[:, 3, :, :] - bboxes2[:, 1, :, :])
+    bboxes2_area.clamp_min_(0.0)
+    # 计算交集
+    inter_box1 = torch.maximum(bboxes1[:, :2], bboxes2[:, :2])
+    inter_box2 = torch.minimum(bboxes1[:, 2:], bboxes2[:, 2:])
+    inter_area = (inter_box2[:, 0] - inter_box1[:, 0]).clamp_min(0.0) * (inter_box2[:, 1] - inter_box1[:, 1]).clamp_min(0.0)
+    iou = inter_area / (bboxes1_area + bboxes2_area + 1e-8)
+    # Nx7x7
+    return iou
   
   
   def display(self, imgs, preds):
