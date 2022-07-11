@@ -141,7 +141,7 @@ class LuckyYoLoTrainer():
       # print(imgs.shape, loss.item())
       self.optimizer.step()
       self.global_step += 1
-      if self.global_step % 1 == 0:
+      if self.global_step % 10 == 0:
         print("Epoch:[{:03d}]-Loss:{:.3f}-bbox_loss:{:.3f}-cls_loss:{:.3f}-center_loss:{:.3f}"\
               .format(epoch, loss.item(), bbox_loss.item(), cls_loss.item(), center_loss.item()))
       
