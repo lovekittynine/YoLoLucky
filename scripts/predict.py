@@ -17,6 +17,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
+import copy
 
 
 parser = argparse.ArgumentParser("YoLoLucky Predict")
@@ -26,6 +27,7 @@ parser.add_argument("--img_size", default=224, type=int)
 parser.add_argument("--boxes", default=1, type=int)
 parser.add_argument("--num_classes", default=7, type=int)
 parser.add_argument("--backbone", default="vgg16", type=str)
+parser.add_argument("--nms_thresh", default=0.4, type=float)
 args = parser.parse_args()
 
 
@@ -97,7 +99,8 @@ class YoLoLuckyPredictor():
     else:
       bboxes.append([])
     # display
-    # print(bboxes)
+    # nms过滤
+    bboxes = self.nms(bboxes)
     self.display_detects(raw_img, bboxes)
      
      
@@ -116,14 +119,57 @@ class YoLoLuckyPredictor():
         cv2.putText(image, "%s:%.3f"%(category,p), (x1, y1+15), cv2.FONT_HERSHEY_COMPLEX, 0.3, (0,0,255), 1)
     plt.imshow(image)
     plt.show()
-    cv2.imwrite(filename, image)
+    cv2.imwrite(filename, image[..., ::-1])
+    
+    
+  def nms(self, bboxes):
+    # nms后处理[可以进一步升级为soft-nms,大于nms_thresh的box得分score进行降权而不是直接丢弃]
+    bbox_category = {}
+    # 对每一类的bbox进行统计
+    for box in bboxes:
+      cname = box[-1]
+      if cname not in bbox_category:
+        bbox_category[cname] = [box]
+      else:
+        bbox_category[cname].append(box)
+    # print(bbox_category)
+    bboxes_keep = []
+    # 分别对每一类的bbox进行nms
+    for c_bboxes in bbox_category.values():
+      # 按照类别概率进行排序[由大到小]
+      bboxes_candidate = sorted(c_bboxes, key=lambda x:x[-2], reverse=True)
+      while len(bboxes_candidate) > 0:
+        anchor_box = bboxes_candidate[0]
+        bboxes_keep.append(anchor_box)
+        bboxes_candidate = bboxes_candidate[1:]
+        bboxes_candidate_keep = []
+        for bbox in bboxes_candidate:
+          # compute iou
+          iou = self.calculate_iou(bbox[:4], anchor_box[:4])
+          # print(iou)
+          if iou <= args.nms_thresh:
+            bboxes_candidate_keep.append(bbox)
+        bboxes_candidate = copy.deepcopy(bboxes_candidate_keep)
+        
+    return bboxes_keep
       
+  
+  def calculate_iou(self, box1, box2):
+    box1_area = max((box1[2]-box1[0])*(box1[3]-box1[1]), 0.0)
+    box2_area = max((box2[2]-box2[0])*(box2[3]-box2[1]), 0.0)
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2])
+    y2 = min(box1[3], box2[3])
+    inter_area = max(0.0, x2-x1) * max(0.0, y2-y1)
+    iou = inter_area / (box1_area + box2_area - inter_area + 1e-8)
+    return iou
       
       
     
 
 if __name__ == "__main__":
-  args.image = "../utils/009961.jpg"
+  args.image = "../utils/car_test1.jpeg"
   args.ckpt = "../checkpoint/epoch_49.pt"
   args.num_classes = 20
   detector = YoLoLuckyPredictor()

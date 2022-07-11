@@ -27,6 +27,7 @@ class YoLoDataSet(data.Dataset):
     super().__init__()
     self.data_folder = data_folder
     self.image_folder = os.path.join(self.data_folder, "JPEGImages")
+    # self.image_folder = os.path.join(self.data_folder, "Images")
     self.annote_folder = os.path.join(self.data_folder, "Annotations")
     # 记录数据集总类别个数
     self.classes = OrderedDict()

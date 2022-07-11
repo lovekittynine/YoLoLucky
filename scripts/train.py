@@ -115,19 +115,20 @@ class LuckyYoLoTrainer():
       # forward
       # Nx(5+7)x7x7
       preds = self.model(imgs)
-      # 中心点损失
-      center_pos = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*mask)
-      center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
-      center_loss = center_pos + 0.1 * center_neg
-      """
+      # # 中心点损失
+      # center_pos = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*mask)
+      # center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
+      # center_loss = center_pos + 0.1 * center_neg
+      
       # 注意.clone()开辟新的内存空间.detach()从计算图中剥离
-      iou = self.calculate_iou(preds[:, :4, :, :].clone().detach(), labs[:, :4, :, :])
+      # -------------注意labs也要.clone(), 否则会原地修改labs中的值-------------- #
+      iou = self.calculate_iou(preds[:, :4, :, :].clone().detach(), labs[:, :4, :, :].clone())
       center_pos = torch.sum((preds[:,4,:,:] - iou)**2*mask)
       center_neg = torch.sum((preds[:,4,:,:] - iou)**2*(1.0 - mask))
       center_loss = center_pos + 0.5 * center_neg
-      """
+      
       # 类别概率损失
-      cls_loss = torch.sum((preds[:,5:,:,:] - labs[:,5:,:,:])**2*mask.unsqueeze(1))
+      cls_loss = torch.sum((preds[:,5:,:,:]*preds[:,4:5,:,:] - labs[:,5:,:,:])**2*mask.unsqueeze(1))
       # 关键点偏移量损失
       offset_loss = torch.sum((preds[:,:2,:,:] - labs[:,:2,:,:])**2*mask.unsqueeze(1))
       # 边界框尺度损失
@@ -161,10 +162,12 @@ class LuckyYoLoTrainer():
   
   def xywh2xyxy(self, bboxes):
     # 转换bbox: xywh格式到xyxy格式, shape: Nx4x7x7
+    # 转换的尺度:在feature map尺度上[e.g. 7x7]
     grid_size = bboxes.size(-1)
     grid_y, grid_x = torch.meshgrid(torch.arange(grid_size), torch.arange(grid_size))
     grid_y = grid_y.to(self.device)
     grid_x = grid_x.to(self.device)
+    # print(bboxes)
     # 转换中心点坐标
     bboxes[:, 0, :, :] = bboxes[:, 0, :, :] + grid_x.unsqueeze(0)
     bboxes[:, 1, :, :] = bboxes[:, 1, :, :] + grid_y.unsqueeze(0)
@@ -173,7 +176,7 @@ class LuckyYoLoTrainer():
     # convert to xyxy format
     # 由于torch计算梯度的原因,此处不能原地修改
     bboxes[:, 0, :, :] = bboxes[:, 0, :, :] - 0.5 * bboxes[:, 2, :, :]
-    bboxes[:, 1, :, :] = bboxes[:, 0, :, :] - 0.5 * bboxes[:, 3, :, :]
+    bboxes[:, 1, :, :] = bboxes[:, 1, :, :] - 0.5 * bboxes[:, 3, :, :]
     bboxes[:, 2, :, :] = bboxes[:, 0, :, :] + bboxes[:, 2, :, :]
     bboxes[:, 3, :, :] = bboxes[:, 1, :, :] + bboxes[:, 3, :, :]
     return bboxes
@@ -185,6 +188,7 @@ class LuckyYoLoTrainer():
     # Nx4x7x7
     bboxes1 = self.xywh2xyxy(bboxes1)
     bboxes2 = self.xywh2xyxy(bboxes2)
+    # print(bboxes1)
     # compute iou
     bboxes1_area = (bboxes1[:, 2, :, :] - bboxes1[:, 0, :, :]) * (bboxes1[:, 3, :, :] - bboxes1[:, 1, :, :])
     bboxes1_area.clamp_min_(0.0)
@@ -194,7 +198,7 @@ class LuckyYoLoTrainer():
     inter_box1 = torch.maximum(bboxes1[:, :2], bboxes2[:, :2])
     inter_box2 = torch.minimum(bboxes1[:, 2:], bboxes2[:, 2:])
     inter_area = (inter_box2[:, 0] - inter_box1[:, 0]).clamp_min(0.0) * (inter_box2[:, 1] - inter_box1[:, 1]).clamp_min(0.0)
-    iou = inter_area / (bboxes1_area + bboxes2_area + 1e-8)
+    iou = inter_area / (bboxes1_area + bboxes2_area - inter_area + 1e-8)
     # Nx7x7
     return iou
   
