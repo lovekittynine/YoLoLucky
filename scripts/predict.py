@@ -18,6 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import copy
+from tqdm import tqdm
 
 
 parser = argparse.ArgumentParser("YoLoLucky Predict")
@@ -27,7 +28,7 @@ parser.add_argument("--img_size", default=224, type=int)
 parser.add_argument("--boxes", default=1, type=int)
 parser.add_argument("--num_classes", default=7, type=int)
 parser.add_argument("--backbone", default="vgg16", type=str)
-parser.add_argument("--nms_thresh", default=0.4, type=float)
+parser.add_argument("--nms_thresh", default=0.5, type=float)
 args = parser.parse_args()
 
 
@@ -51,7 +52,7 @@ class YoLoLuckyPredictor():
     # voc类别索引
     self.idx2cls = {0:"bottle",1:"person",2:"boat",3:"chair",4:"cat",5:"car",6:"horse",
                     7:"aeroplane",8:"diningtable",9:"cow",10:"train",11:"sofa",12:"pottedplant",
-                    13:"brid",14:"bycycle",15:"tvmonitor",16:"dog",17:"motorbike",18:"bus",19:"sheep"}
+                    13:"bird",14:"bicycle",15:"tvmonitor",16:"dog",17:"motorbike",18:"bus",19:"sheep"}
     
     
     
@@ -72,8 +73,9 @@ class YoLoLuckyPredictor():
   
   
   @torch.no_grad()
-  def predict(self):
+  def predict(self, visualize=True):
     img, (h_ratio, w_ratio), raw_img = self.preprocess()
+    H, W, _ = raw_img.shape
     preds = self.model(img).squeeze().detach().cpu()
     bboxes = []
     # 中心点预测
@@ -94,14 +96,21 @@ class YoLoLuckyPredictor():
       c_x = (offset_x + grid_x) * 32 / w_ratio
       c_y = (offset_y + grid_y) * 32 / h_ratio
       for x, y, w, h, p, idx in zip(c_x.numpy(), c_y.numpy(), width.numpy(), height.numpy(), tgt_prob.numpy(), tgt_ind.numpy()):
-        box = [x, y, w, h, p, self.idx2cls[idx]]
+        # covert xywh to xyxy
+        x1 = max(0, int(x - 0.5*w))
+        y1 = max(0, int(y - 0.5*h))
+        x2 = min(W, int(x + 0.5*w))
+        y2 = min(H, int(y + 0.5*h))
+        box = [x1, y1, x2, y2, p, self.idx2cls[idx]]
         bboxes.append(box)
-    else:
-      bboxes.append([])
+    
     # display
     # nms过滤
-    bboxes = self.nms(bboxes)
-    self.display_detects(raw_img, bboxes)
+    if len(bboxes) > 0:
+      bboxes = self.nms(bboxes)
+    if visualize:
+      self.display_detects(raw_img, bboxes)
+    return bboxes
      
      
      
@@ -109,9 +118,7 @@ class YoLoLuckyPredictor():
     height, width, _ = image.shape
     for box in bboxes:
       if box:
-        x, y, w, h, p, category = box
-        x1, y1 = max(0, int(x - w//2)), max(0, int(y - h//2))
-        x2, y2 = min(width, int(x + w//2)), min(height, int(y + h//2))
+        x1, y1, x2, y2, p, category = box
         cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2, 2)
         del_w, del_h = min(50, int(width)), min(30, int(height))
         # print(x1, y1, x2, y2)
@@ -169,14 +176,38 @@ class YoLoLuckyPredictor():
     
 
 if __name__ == "__main__":
-  args.image = "../utils/car_test1.jpeg"
-  args.ckpt = "../checkpoint/epoch_49.pt"
+  args.ckpt = "../checkpoint/epoch_v2_100.pt"
   args.num_classes = 20
   detector = YoLoLuckyPredictor()
-  detector.predict()
+  # args.image = "../VOCdevkit_test/VOC2007/JPEGImages/005926.jpg"
+  # bbox = detector.predict()
+  # print(bbox)
   
-    
-    
-    
+  
+  # voc 2007测试集评测
+  testFolder = "../VOCdevkit_test/VOC2007/JPEGImages"
+  cls_preds = {}
+  for file in tqdm(os.listdir(testFolder), desc="VOC 2007 Testing..."):
+    image_id = file[:-4]
+    imgpath = os.path.join(testFolder, file)
+    args.image = imgpath
+    bboxes = detector.predict(visualize=False)
+    for box in bboxes:
+      bnd = box[:4]
+      prob = box[4]
+      cname = box[-1]
+      if cname not in cls_preds:
+        cls_preds[cname] = [[image_id, prob] + bnd]
+      else:
+        cls_preds[cname].append([image_id, prob] + bnd)
+        
+  # print(cls_preds)     
+  # save detection results
+  detectionFolder = "../voc_eval/detections"
+  for cname, bboxes in cls_preds.items():
+    with open(os.path.join(detectionFolder, "%s.txt"%cname), "w") as f:
+      for box in bboxes:
+        f.write("%s %.3f %f %f %f %f\n"%(box[0], box[1], box[2], box[3], box[4], box[5]))
+  
     
 

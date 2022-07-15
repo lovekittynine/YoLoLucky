@@ -23,9 +23,9 @@ import numpy as np
 
 parser = argparse.ArgumentParser("LuckyYoLo Training")
 parser.add_argument("--batchsize", default=64, type=int)
-parser.add_argument("--epochs", default=100, type=int)
+parser.add_argument("--epochs", default=160, type=int)
 parser.add_argument("--lr", default=2e-4, type=float)
-parser.add_argument("--warmup_epochs", default=5, type=int)
+parser.add_argument("--warmup_epochs", default=20, type=int)
 parser.add_argument("--wd", default=5e-3, type=int)
 parser.add_argument("--checkpoint", default="../checkpoint", type=str)
 parser.add_argument("--logFolder", default="../log", type=str)
@@ -35,6 +35,7 @@ parser.add_argument("--backbone", default="vgg16", type=str)
 parser.add_argument("--backbone_pretrained", default="../models/vgg16_features.pth", type=str)
 parser.add_argument("--trainFolder", default="../北京理工车辆数据集", type=str)
 parser.add_argument("--img_size", default=224, type=int)
+parser.add_argument("--multiscale", default="False", type=str, help="是否开启多尺度训练")
 args = parser.parse_args()
 
 
@@ -71,7 +72,9 @@ class LuckyYoLoTrainer():
     
     
   def create_dataloader(self):
-    self.dataset = YoLoDataSet(args.trainFolder, args.img_size)
+    self.dataset = YoLoDataSet(args.trainFolder, args.img_size, 
+                               batchsize=args.batchsize, 
+                               multiscale=eval(args.multiscale))
     self.dataloader = data.DataLoader(self.dataset, 
                                       batch_size=args.batchsize,
                                       shuffle=True,
@@ -101,11 +104,11 @@ class LuckyYoLoTrainer():
     # 学习率调整
     if epoch <= args.warmup_epochs:
       self.warmUp(epoch)
-    if epoch == 50:
+    if epoch == 80:
       self.learningRateDecay(args.lr * 0.1)
-    elif epoch == 70:
+    elif epoch == 120:
       self.learningRateDecay(args.lr * 0.01)
-    elif epoch == 90:
+    elif epoch == 140:
       self.learningRateDecay(args.lr * 0.001)
       
     for imgs, labs, mask in self.dataloader:
@@ -114,43 +117,43 @@ class LuckyYoLoTrainer():
       mask = mask.to(self.device)
       labs = labs.permute([0,3,1,2])
       
-      with torch.cuda.amp.autocast():
-        # forward
-        # Nx(5+7)x7x7
-        preds = self.model(imgs)
-        # # 中心点损失
-        # center_pos = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*mask)
-        # center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
-        # center_loss = center_pos + 0.1 * center_neg
-        
-        # 注意.clone()开辟新的内存空间.detach()从计算图中剥离
-        # -------------注意labs也要.clone(), 否则会原地修改labs中的值-------------- #
-        iou = self.calculate_iou(preds[:, :4, :, :].clone().detach(), labs[:, :4, :, :].clone())
-        center_pos = torch.sum((preds[:,4,:,:] - iou)**2*mask)
-        center_neg = torch.sum((preds[:,4,:,:] - iou)**2*(1.0 - mask))
-        center_loss = center_pos + 0.5 * center_neg
-        
-        # 类别概率损失
-        cls_loss = torch.sum((preds[:,5:,:,:]*preds[:,4:5,:,:] - labs[:,5:,:,:])**2*mask.unsqueeze(1))
-        # 关键点偏移量损失
-        offset_loss = torch.sum((preds[:,:2,:,:] - labs[:,:2,:,:])**2*mask.unsqueeze(1))
-        # 边界框尺度损失
-        scale_loss = torch.sum((torch.sqrt(preds[:,2:4,:,:]+1e-8) \
-                                - torch.sqrt(labs[:,2:4,:,:])+1e-8)**2*mask.unsqueeze(1))
-        bbox_loss = offset_loss + scale_loss
-        # loss在batch维度取平均
-        loss = (5.0*bbox_loss + cls_loss + center_loss) / imgs.size(0)
+      # with torch.cuda.amp.autocast():
+      # forward
+      # Nx(5+7)x7x7
+      preds = self.model(imgs)
+      # # 中心点损失
+      # center_pos = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*mask)
+      # center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
+      # center_loss = center_pos + 0.1 * center_neg
+      
+      # 注意.clone()开辟新的内存空间.detach()从计算图中剥离
+      # -------------注意labs也要.clone(), 否则会原地修改labs中的值-------------- #
+      iou = self.calculate_iou(preds[:, :4, :, :].clone().detach(), labs[:, :4, :, :].clone())
+      center_pos = torch.sum((preds[:,4,:,:] - iou)**2*mask)
+      center_neg = torch.sum((preds[:,4,:,:] - iou)**2*(1.0 - mask))
+      center_loss = center_pos + 0.5 * center_neg
+      
+      # 类别概率损失
+      cls_loss = torch.sum((preds[:,5:,:,:]*preds[:,4:5,:,:] - labs[:,5:,:,:])**2*mask.unsqueeze(1))
+      # 关键点偏移量损失
+      offset_loss = torch.sum((preds[:,:2,:,:] - labs[:,:2,:,:])**2*mask.unsqueeze(1))
+      # 边界框尺度损失
+      scale_loss = torch.sum((torch.sqrt(preds[:,2:4,:,:]+1e-8) \
+                              - torch.sqrt(labs[:,2:4,:,:])+1e-8)**2*mask.unsqueeze(1))
+      bbox_loss = offset_loss + scale_loss
+      # loss在batch维度取平均
+      loss = (5.0*bbox_loss + cls_loss + center_loss) / imgs.size(0)
         
       # backward
       self.optimizer.zero_grad()
-      # loss.backward()
-      # self.optimizer.step()
+      loss.backward()
+      self.optimizer.step()
       
-      # 混合精度训练
-      self.scaler.scale(loss).backward()
-      self.scaler.step(self.optimizer)
+      # # 混合精度训练
+      # self.scaler.scale(loss).backward()
+      # self.scaler.step(self.optimizer)
+      # self.scaler.update()
       scale = self.scaler.get_scale()
-      self.scaler.update()
       
       # print(imgs.shape, loss.item())
       self.global_step += 1
@@ -263,6 +266,9 @@ class LuckyYoLoTrainer():
   def main(self):
     for epoch in range(1, args.epochs+1):
       self.train(epoch)
+    # 保存权重到dbfs
+    os.system("cp %s %s"%(os.path.join(args.checkpoint, "epoch_%d.pt"%epoch)),
+              "/dbfs/mnt/algo-data/weishao/lucky_yolo/epoch_multiscale.pt")
       
       
       

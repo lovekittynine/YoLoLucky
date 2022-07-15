@@ -23,7 +23,7 @@ class YoLoDataSet(data.Dataset):
   YoLo车辆数据集:
     return 7x7x(5+C)
   """
-  def __init__(self, data_folder="../北京理工车辆数据集", img_size=224, stride=32):
+  def __init__(self, data_folder="../北京理工车辆数据集", img_size=224, stride=32, batchsize=32, multiscale=False):
     super().__init__()
     self.data_folder = data_folder
     self.image_folder = os.path.join(self.data_folder, "JPEGImages")
@@ -45,6 +45,12 @@ class YoLoDataSet(data.Dataset):
                                          transforms.ToTensor(),
                                          transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                                               std=[0.229, 0.224, 0.225])])
+    # 是否启动多尺度训练
+    self.multiscale = multiscale
+    self.batchsize = batchsize
+    self.scales = [224, 256, 288, 320, 352, 384, 416, 448]
+    # 计数变量
+    self.counter = 0
     
     
     
@@ -88,6 +94,12 @@ class YoLoDataSet(data.Dataset):
     labelpath = os.path.join(self.annote_folder, os.path.basename(imgpath).replace("jpg", "xml"))
     image, (H, W), bboxes = self.__parse(imgpath, labelpath)
     # print(bboxes)
+    # 每10个batch随机切换训练尺度
+    if self.multiscale and self.counter == self.batchsize*10:
+      self.counter = 0
+      # 随机选择新的尺度
+      self.img_size = np.random.choice(self.scales)
+      self.grid_size = self.img_size // self.stride
     # resize image
     image = cv2.resize(image, (self.img_size, self.img_size))
     h_ratio, w_ratio = self.img_size/H, self.img_size/W
@@ -196,12 +208,11 @@ if __name__ == "__main__":
   print(yolodataset.classes)
   for image, label, mask in iter(yolodataset):
     print(image.shape)
-    break
     pass
   # print(image.shape)
   # print(label)
   print(mask)
-  yolodataset.display_bboxv2(image, label)
+  # yolodataset.display_bboxv2(image, label)
     
     
     
