@@ -26,8 +26,8 @@ class YoLoDataSet(data.Dataset):
   def __init__(self, data_folder="../北京理工车辆数据集", img_size=224, stride=32, batchsize=32, multiscale=False):
     super().__init__()
     self.data_folder = data_folder
-    # self.image_folder = os.path.join(self.data_folder, "JPEGImages")
-    self.image_folder = os.path.join(self.data_folder, "Images")
+    self.image_folder = os.path.join(self.data_folder, "JPEGImages")
+    # self.image_folder = os.path.join(self.data_folder, "Images")
     self.annote_folder = os.path.join(self.data_folder, "Annotations")
     # 记录数据集总类别个数
     self.classes = OrderedDict()
@@ -206,7 +206,7 @@ class YoLoDataSet(data.Dataset):
 if __name__ == "__main__":
   yolodataset = YoLoDataSet(img_size=448, multiscale=True)
   print(yolodataset.classes)
-  for image, label, mask in iter(yolodataset):
+  for image, label, mask, imgsize in iter(yolodataset):
     print(image.shape)
     break
     pass
