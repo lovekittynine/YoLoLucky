@@ -111,7 +111,9 @@ class LuckyYoLoTrainer():
     elif epoch == 140:
       self.learningRateDecay(args.lr * 0.001)
       
-    for imgs, labs, mask in self.dataloader:
+    for imgs, labs, mask, img_size in self.dataloader:
+      # 更新当前batchsize的分辨率
+      args.img_size = img_size[0]
       imgs = imgs.to(self.device)
       labs = labs.to(self.device)
       mask = mask.to(self.device)
