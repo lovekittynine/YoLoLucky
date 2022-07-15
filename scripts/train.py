@@ -262,7 +262,7 @@ class LuckyYoLoTrainer():
         box.append(bnd)
       bboxes.append(box)
     for i, (img, box) in enumerate(zip(imgs, bboxes)):
-      display_detects(img.copy()[...,::-1], box, os.path.join(self.imgLogFolder, "test_%d.jpg"%i))
+      display_detects(img[...,::-1].copy(), box, os.path.join(self.imgLogFolder, "test_%d.jpg"%i))
       
     
   def main(self):
