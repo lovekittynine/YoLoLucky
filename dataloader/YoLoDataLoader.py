@@ -16,6 +16,7 @@ import os
 from xml.etree import ElementTree
 from collections import Counter, OrderedDict
 from torchvision import transforms
+import json
 
 
 class YoLoDataSet(data.Dataset):
@@ -37,7 +38,8 @@ class YoLoDataSet(data.Dataset):
     # grid size
     self.grid_size = self.img_size // self.stride
     self.imgpaths = glob.glob(self.image_folder + "/*.jpg")
-    self.labelpaths = glob.glob(self.annote_folder + "/*.xml")
+    self.labelpaths = sorted(glob.glob(self.annote_folder + "/*.xml"), 
+                             key=lambda x: int(x.split("/")[-1][:-4]))
     self.__getCategory()
     # 颜色抖动数据增强操作
     self.transform = transforms.Compose([transforms.ToPILImage(),
@@ -87,6 +89,9 @@ class YoLoDataSet(data.Dataset):
           self.classes[category] = len(self.classes)
     counter = Counter(categorys)
     print("数据集类别分布:", counter)
+    print(self.classes)
+    with open("../voc_eval/voc_classes.json", "w") as f:
+      json.dump(self.classes, f)
     
     
   def __getitem__(self, idx):
@@ -95,7 +100,7 @@ class YoLoDataSet(data.Dataset):
     image, (H, W), bboxes = self.__parse(imgpath, labelpath)
     # print(bboxes)
     # 每10个batch随机切换训练尺度
-    if self.multiscale and self.counter == 0:
+    if self.multiscale and self.counter == self.batchsize*10:
       self.counter = 0
       # 随机选择新的尺度
       self.img_size = np.random.choice(self.scales)
@@ -146,6 +151,8 @@ class YoLoDataSet(data.Dataset):
     image = self.transform(image)
     label = torch.from_numpy(label)
     mask = torch.from_numpy(mask)
+    # update计数变量
+    self.counter += 1
     
     return image, label, mask, self.img_size
   

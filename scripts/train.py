@@ -23,7 +23,7 @@ import numpy as np
 
 parser = argparse.ArgumentParser("LuckyYoLo Training")
 parser.add_argument("--batchsize", default=64, type=int)
-parser.add_argument("--epochs", default=160, type=int)
+parser.add_argument("--epochs", default=600, type=int)
 parser.add_argument("--lr", default=2e-4, type=float)
 parser.add_argument("--warmup_epochs", default=20, type=int)
 parser.add_argument("--wd", default=5e-3, type=int)
@@ -104,11 +104,11 @@ class LuckyYoLoTrainer():
     # 学习率调整
     if epoch <= args.warmup_epochs:
       self.warmUp(epoch)
-    if epoch == 80:
+    if epoch == 400:
       self.learningRateDecay(args.lr * 0.1)
-    elif epoch == 120:
+    elif epoch == 500:
       self.learningRateDecay(args.lr * 0.01)
-    elif epoch == 140:
+    elif epoch == 550:
       self.learningRateDecay(args.lr * 0.001)
       
     for imgs, labs, mask, img_size in self.dataloader:
@@ -119,42 +119,42 @@ class LuckyYoLoTrainer():
       mask = mask.to(self.device)
       labs = labs.permute([0,3,1,2])
       
-      # with torch.cuda.amp.autocast():
-      # forward
-      # Nx(5+7)x7x7
-      preds = self.model(imgs)
-      # # 中心点损失
-      # center_pos = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*mask)
-      # center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
-      # center_loss = center_pos + 0.1 * center_neg
-      
-      # 注意.clone()开辟新的内存空间.detach()从计算图中剥离
-      # -------------注意labs也要.clone(), 否则会原地修改labs中的值-------------- #
-      iou = self.calculate_iou(preds[:, :4, :, :].clone().detach(), labs[:, :4, :, :].clone())
-      center_pos = torch.sum((preds[:,4,:,:] - iou)**2*mask)
-      center_neg = torch.sum((preds[:,4,:,:] - iou)**2*(1.0 - mask))
-      center_loss = center_pos + 0.5 * center_neg
-      
-      # 类别概率损失
-      cls_loss = torch.sum((preds[:,5:,:,:]*preds[:,4:5,:,:] - labs[:,5:,:,:])**2*mask.unsqueeze(1))
-      # 关键点偏移量损失
-      offset_loss = torch.sum((preds[:,:2,:,:] - labs[:,:2,:,:])**2*mask.unsqueeze(1))
-      # 边界框尺度损失
-      scale_loss = torch.sum((torch.sqrt(preds[:,2:4,:,:]+1e-8) \
-                              - torch.sqrt(labs[:,2:4,:,:])+1e-8)**2*mask.unsqueeze(1))
-      bbox_loss = offset_loss + scale_loss
-      # loss在batch维度取平均
-      loss = (5.0*bbox_loss + cls_loss + center_loss) / imgs.size(0)
+      with torch.cuda.amp.autocast():
+        # forward
+        # Nx(5+7)x7x7
+        preds = self.model(imgs)
+        # # 中心点损失
+        # center_pos = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*mask)
+        # center_neg = torch.sum((preds[:,4,:,:] - labs[:,4,:,:])**2*(1.0-mask))
+        # center_loss = center_pos + 0.1 * center_neg
+        
+        # 注意.clone()开辟新的内存空间.detach()从计算图中剥离
+        # -------------注意labs也要.clone(), 否则会原地修改labs中的值-------------- #
+        iou = self.calculate_iou(preds[:, :4, :, :].clone().detach(), labs[:, :4, :, :].clone())
+        center_pos = torch.sum((preds[:,4,:,:] - iou)**2*mask)
+        center_neg = torch.sum((preds[:,4,:,:] - iou)**2*(1.0 - mask))
+        center_loss = center_pos + 0.5 * center_neg
+        
+        # 类别概率损失
+        cls_loss = torch.sum((preds[:,5:,:,:]*preds[:,4:5,:,:] - labs[:,5:,:,:])**2*mask.unsqueeze(1))
+        # 关键点偏移量损失
+        offset_loss = torch.sum((preds[:,:2,:,:] - labs[:,:2,:,:])**2*mask.unsqueeze(1))
+        # 边界框尺度损失
+        scale_loss = torch.sum((torch.sqrt(preds[:,2:4,:,:]+1e-8) \
+                                - torch.sqrt(labs[:,2:4,:,:])+1e-8)**2*mask.unsqueeze(1))
+        bbox_loss = offset_loss + scale_loss
+        # loss在batch维度取平均
+        loss = (5.0*bbox_loss + cls_loss + center_loss) / imgs.size(0)
         
       # backward
       self.optimizer.zero_grad()
-      loss.backward()
-      self.optimizer.step()
+      # loss.backward()
+      # self.optimizer.step()
       
       # # 混合精度训练
-      # self.scaler.scale(loss).backward()
-      # self.scaler.step(self.optimizer)
-      # self.scaler.update()
+      self.scaler.scale(loss).backward()
+      self.scaler.step(self.optimizer)
+      self.scaler.update()
       scale = self.scaler.get_scale()
       
       # print(imgs.shape, loss.item())
@@ -262,7 +262,7 @@ class LuckyYoLoTrainer():
         box.append(bnd)
       bboxes.append(box)
     for i, (img, box) in enumerate(zip(imgs, bboxes)):
-      display_detects(img.copy(), box, os.path.join(self.imgLogFolder, "test_%d.jpg"%i))
+      display_detects(img.copy()[...,::-1], box, os.path.join(self.imgLogFolder, "test_%d.jpg"%i))
       
     
   def main(self):

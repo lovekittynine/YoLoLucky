@@ -79,7 +79,7 @@ class YoLoLuckyPredictor():
     preds = self.model(img).squeeze().detach().cpu()
     bboxes = []
     # 中心点预测
-    grid_y, grid_x = torch.where(preds[4,:,:] >= 0.5)
+    grid_y, grid_x = torch.where(preds[4,:,:] >= 0.3)
     
     if len(grid_y) > 0:
       offset_x, offset_y = preds[0,grid_y,grid_x], preds[1,grid_y,grid_x]
@@ -96,13 +96,14 @@ class YoLoLuckyPredictor():
       c_x = (offset_x + grid_x) * 32 / w_ratio
       c_y = (offset_y + grid_y) * 32 / h_ratio
       for x, y, w, h, p, idx in zip(c_x.numpy(), c_y.numpy(), width.numpy(), height.numpy(), tgt_prob.numpy(), tgt_ind.numpy()):
-        # covert xywh to xyxy
-        x1 = max(0, int(x - 0.5*w))
-        y1 = max(0, int(y - 0.5*h))
-        x2 = min(W, int(x + 0.5*w))
-        y2 = min(H, int(y + 0.5*h))
-        box = [x1, y1, x2, y2, p, self.idx2cls[idx]]
-        bboxes.append(box)
+        if p >= 0.5:
+          # covert xywh to xyxy
+          x1 = max(0, int(x - 0.5*w))
+          y1 = max(0, int(y - 0.5*h))
+          x2 = min(W, int(x + 0.5*w))
+          y2 = min(H, int(y + 0.5*h))
+          box = [x1, y1, x2, y2, p, self.idx2cls[idx]]
+          bboxes.append(box)
     
     # display
     # nms过滤
@@ -176,14 +177,15 @@ class YoLoLuckyPredictor():
     
 
 if __name__ == "__main__":
-  args.ckpt = "../checkpoint/epoch_v2_100.pt"
+  args.ckpt = "../checkpoint/epoch_multiscale.pt"
   args.num_classes = 20
+  args.img_size = 256
   detector = YoLoLuckyPredictor()
-  # args.image = "../VOCdevkit_test/VOC2007/JPEGImages/005926.jpg"
-  # bbox = detector.predict()
-  # print(bbox)
+  args.image = "../VOCdevkit_test/VOC2007/JPEGImages/000018.jpg"
+  bbox = detector.predict()
+  print(bbox)
   
-  
+  """
   # voc 2007测试集评测
   testFolder = "../VOCdevkit_test/VOC2007/JPEGImages"
   cls_preds = {}
@@ -208,6 +210,6 @@ if __name__ == "__main__":
     with open(os.path.join(detectionFolder, "%s.txt"%cname), "w") as f:
       for box in bboxes:
         f.write("%s %.3f %f %f %f %f\n"%(box[0], box[1], box[2], box[3], box[4], box[5]))
-  
+  """
     
 
