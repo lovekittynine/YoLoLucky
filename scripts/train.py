@@ -269,8 +269,8 @@ class LuckyYoLoTrainer():
     for epoch in range(1, args.epochs+1):
       self.train(epoch)
     # 保存权重到dbfs
-    os.system("cp %s %s"%(os.path.join(args.checkpoint, "epoch_%d.pt"%epoch)),
-              "/dbfs/mnt/algo-data/weishao/lucky_yolo/epoch_multiscale.pt")
+    os.system("cp %s %s"%(os.path.join(args.checkpoint, "epoch_%d.pt"%epoch),
+              "/dbfs/mnt/algo-data/weishao/lucky_yolo/epoch_multiscale.pt"))
       
       
       
