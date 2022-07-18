@@ -115,7 +115,6 @@ class YoLoDataSet(data.Dataset):
     mask = np.zeros((self.grid_size, self.grid_size), dtype=np.float32)
     
     for box in bboxes:
-      print(box)
       xmin, ymin, xmax, ymax, cls_id = box
       # box resize
       xmin *= w_ratio
@@ -224,7 +223,7 @@ class YoLoDataSet(data.Dataset):
       ymin = min(bbox[1], ymin)
       xmax = max(bbox[2], xmax)
       ymax = max(bbox[3], ymax)
-    print(bboxes)
+      
     # 裁剪的框到边界的距离[最大值]
     crop_left = xmin
     crop_right = width - xmax
