@@ -107,7 +107,8 @@ class YoLoDataSet(data.Dataset):
     if self.multiscale and self.counter == self.batchsize*10:
       self.counter = 0
       # 随机选择新的尺度
-      self.img_size = np.random.choice(self.scales)
+      np.random.shuffle(self.scales)
+      self.img_size = self.scales[self.counter%len(self.scales)]
       self.grid_size = self.img_size // self.stride
     # resize image
     image = cv2.resize(image, (self.img_size, self.img_size))
