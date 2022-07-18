@@ -50,7 +50,7 @@ class YoLoDataSet(data.Dataset):
     # 是否启动多尺度训练
     self.multiscale = multiscale
     self.batchsize = batchsize
-    self.scales = [224, 256, 288, 320, 352, 384, 416, 448]
+    self.scales = [224, 256, 288, 320, 352, 384, 416]
     # 计数变量
     self.counter = 0
     
@@ -98,7 +98,9 @@ class YoLoDataSet(data.Dataset):
     imgpath = self.imgpaths[idx]
     labelpath = os.path.join(self.annote_folder, os.path.basename(imgpath).replace("jpg", "xml"))
     image, (H, W), bboxes = self.__parse(imgpath, labelpath)
-    # print(bboxes)
+    if np.random.rand() >= 0.5:
+      # 随机裁剪增强
+      image, (H, W), bboxes = self.random_crop_img_bboxes(image, bboxes)
     # 每10个batch随机切换训练尺度
     if self.multiscale and self.counter == self.batchsize*10:
       self.counter = 0
@@ -113,6 +115,7 @@ class YoLoDataSet(data.Dataset):
     mask = np.zeros((self.grid_size, self.grid_size), dtype=np.float32)
     
     for box in bboxes:
+      print(box)
       xmin, ymin, xmax, ymax, cls_id = box
       # box resize
       xmin *= w_ratio
@@ -126,7 +129,7 @@ class YoLoDataSet(data.Dataset):
       c_x = (xmin + 0.5 * width) / 32
       c_y = (ymin + 0.5 * height) / 32
       # 随机左右反转进行数据增强
-      if np.random.rand() > 0.5:
+      if np.random.rand() >= 0.5:
         c_x = self.grid_size - c_x
         image = image[:, ::-1, :].copy() 
       # print(c_x, c_y)
@@ -206,6 +209,46 @@ class YoLoDataSet(data.Dataset):
       x1, y1, x2, y2 = xmin[grid_y, grid_x].int().item(), ymin[grid_y, grid_x].int().item(), xmax[grid_y, grid_x].int().item(), ymax[grid_y, grid_x].int().item()
       cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2, 2)
     cv2.imwrite("./test.jpg", image)  
+    
+    
+  def random_crop_img_bboxes(self, image, bboxes):
+    # 随机裁剪图像和bbox
+    height, width = image.shape[:2]
+    # 包含所有目标的最小bbox坐标初始化
+    xmin = width
+    xmax = 0
+    ymin = height
+    ymax = 0
+    for bbox in bboxes:
+      xmin = min(bbox[0], xmin)
+      ymin = min(bbox[1], ymin)
+      xmax = max(bbox[2], xmax)
+      ymax = max(bbox[3], ymax)
+    print(bboxes)
+    # 裁剪的框到边界的距离[最大值]
+    crop_left = xmin
+    crop_right = width - xmax
+    crop_top = ymin
+    crop_bottom = height - ymax
+    # 随机调整裁剪框
+    crop_xmin = int(xmin - np.random.uniform(0, crop_left))
+    crop_ymin = int(ymin - np.random.uniform(0, crop_top))
+    crop_xmax = int(xmax + np.random.uniform(0, crop_right))
+    crop_ymax = int(ymax + np.random.uniform(0, crop_bottom))
+    
+    # 边界调整
+    crop_xmin = max(0, crop_xmin)
+    crop_ymin = max(0, crop_ymin)
+    crop_xmax = min(width, crop_xmax)
+    crop_ymax = min(height, crop_ymax)
+    # crop image and  bboxes
+    image = image[crop_ymin:crop_ymax, crop_xmin:crop_xmax]
+    bboxes_crop = []
+    for bbox in bboxes:
+      bboxes_crop.append([bbox[0]-crop_xmin, bbox[1]-crop_ymin, bbox[2]-crop_xmin, bbox[3]-crop_ymin, bbox[4]])
+    H, W = image.shape[:2]
+    return image, (H, W), bboxes_crop
+    
       
     
     

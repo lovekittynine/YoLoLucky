@@ -36,6 +36,8 @@ class YoLoNet(nn.Module):
     self.output_channels = B * 5 + C
     self.regressor = nn.Sequential(nn.Conv2d(512, 512, 3, 1, 1),
                                    nn.ReLU(inplace=True),
+                                   nn.Conv2d(512, 512, 3, 1, 1),
+                                   nn.ReLU(inplace=True),
                                    nn.Conv2d(512, self.output_channels, 1, 1, 0),
                                    nn.Sigmoid())
     if pretrained:
