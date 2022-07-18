@@ -38,6 +38,8 @@ class YoLoNet(nn.Module):
                                    nn.ReLU(inplace=True),
                                    nn.Conv2d(512, 512, 3, 1, 1),
                                    nn.ReLU(inplace=True),
+                                   nn.Conv2d(512, 512, 3, 1, 1),
+                                   nn.ReLU(inplace=True),
                                    nn.Conv2d(512, self.output_channels, 1, 1, 0),
                                    nn.Sigmoid())
     if pretrained:
