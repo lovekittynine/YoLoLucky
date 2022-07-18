@@ -26,6 +26,8 @@ class YoLoDataSet(data.Dataset):
   """
   def __init__(self, data_folder="../北京理工车辆数据集", img_size=224, stride=32, batchsize=32, multiscale=False):
     super().__init__()
+    # 固定随机种子
+    np.random.seed(940806)
     self.data_folder = data_folder
     self.image_folder = os.path.join(self.data_folder, "JPEGImages")
     # self.image_folder = os.path.join(self.data_folder, "Images")
