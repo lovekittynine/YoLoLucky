@@ -55,6 +55,7 @@ class YoLoDataSet(data.Dataset):
     self.scales = [224, 256, 288, 320, 352, 384, 416]
     # 计数变量
     self.counter = 0
+    self.ptr = 0
     
     
     
@@ -107,9 +108,12 @@ class YoLoDataSet(data.Dataset):
     if self.multiscale and self.counter == self.batchsize*10:
       self.counter = 0
       # 随机选择新的尺度
-      np.random.shuffle(self.scales)
-      self.img_size = self.scales[self.counter%len(self.scales)]
+      self.img_size = self.scales[self.ptr]
       self.grid_size = self.img_size // self.stride
+      self.ptr += 1
+      if self.ptr == len(self.scales):
+        self.ptr = 0
+        np.random.shuffle(self.scales)
     # resize image
     image = cv2.resize(image, (self.img_size, self.img_size))
     h_ratio, w_ratio = self.img_size/H, self.img_size/W
