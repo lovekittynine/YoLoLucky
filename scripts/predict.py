@@ -50,9 +50,9 @@ class YoLoLuckyPredictor():
     self.std = torch.tensor([0.229, 0.224, 0.225]).unsqueeze(-1).unsqueeze(-1)
     # self.idx2cls = {0:"truck",1:"car",2:"bus",3:"microbus",4:"minivan",5:"suv",6:"microvan"}
     # voc类别索引
-    self.idx2cls = {0:"bottle",1:"person",2:"boat",3:"chair",4:"cat",5:"car",6:"horse",
-                    7:"aeroplane",8:"diningtable",9:"cow",10:"train",11:"sofa",12:"pottedplant",
-                    13:"bird",14:"bicycle",15:"tvmonitor",16:"dog",17:"motorbike",18:"bus",19:"sheep"}
+    self.idx2cls = {0:"chair",1:"car",2:"horse",3:"person",4:"bicycle",5:"cat",6:"dog",
+                    7:"train",8:"aeroplane",9:"diningtable",10:"tvmonitor",11:"bird",12:"bottle",
+                    13:"motorbike",14:"pottedplant",15:"boat",16:"sofa",17:"sheep",18:"cow",19:"bus"}
     
     
     
@@ -179,9 +179,10 @@ class YoLoLuckyPredictor():
 if __name__ == "__main__":
   args.ckpt = "../checkpoint/epoch_multiscale.pt"
   args.num_classes = 20
-  args.img_size = 256
   detector = YoLoLuckyPredictor()
+  args.img_size = 224
   args.image = "../VOCdevkit_test/VOC2007/JPEGImages/000018.jpg"
+  # args.image = "../utils/test1.jpeg"
   bbox = detector.predict()
   print(bbox)
   
@@ -211,5 +212,6 @@ if __name__ == "__main__":
       for box in bboxes:
         f.write("%s %.3f %f %f %f %f\n"%(box[0], box[1], box[2], box[3], box[4], box[5]))
   """
+  
     
 
